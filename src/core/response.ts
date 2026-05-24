@@ -1,16 +1,12 @@
-import type { X402Config, RouteValue, PaymentRequirements } from "./types.js";
+import type { X402Config, PaymentRequirements } from "./types.js";
 import { getNetworkConfig, toAtomicUnits } from "./networks.js";
-
-function normalize(value: RouteValue): { amount: string; description?: string } {
-  return typeof value === "string" ? { amount: value } : value;
-}
 
 export function buildPaymentRequirements(
   config: X402Config,
   resource: string,
-  routeValue: RouteValue
+  amount: string,
+  description?: string
 ): PaymentRequirements {
-  const { amount, description } = normalize(routeValue);
   const network = getNetworkConfig(config.network);
 
   return {
@@ -30,11 +26,12 @@ export function buildPaymentRequirements(
 export function build402Body(
   config: X402Config,
   resource: string,
-  routeValue: RouteValue
+  amount: string,
+  description?: string
 ) {
   return {
     x402Version: 1,
-    accepts: [buildPaymentRequirements(config, resource, routeValue)],
+    accepts: [buildPaymentRequirements(config, resource, amount, description)],
     error: "Payment required",
   };
 }

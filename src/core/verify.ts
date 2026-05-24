@@ -1,4 +1,4 @@
-import type { X402Config, RouteValue, VerifyResult } from "./types.js";
+import type { X402Config, VerifyResult } from "./types.js";
 import { buildPaymentRequirements } from "./response.js";
 
 const DEFAULT_FACILITATOR = "https://api.cdp.coinbase.com/platform/x402/v1/verify";
@@ -7,10 +7,11 @@ export async function verifyPayment(
   paymentHeader: string,
   config: X402Config,
   resource: string,
-  routeValue: RouteValue
+  amount: string,
+  description?: string
 ): Promise<VerifyResult> {
   const facilitatorUrl = config.facilitatorUrl ?? DEFAULT_FACILITATOR;
-  const requirements = buildPaymentRequirements(config, resource, routeValue);
+  const requirements = buildPaymentRequirements(config, resource, amount, description);
 
   let res: Response;
   try {

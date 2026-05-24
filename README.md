@@ -150,6 +150,55 @@ app.get("/download/:file", (req, res) => {
 
 ---
 
+## Support / Donation Mode
+
+Set `mode: "minimum"` on any route to accept flexible amounts. The client passes their chosen amount as a query parameter — the server enforces the floor and verifies the exact payment on-chain.
+
+```ts
+// Server — Next.js App Router
+export const POST = withX402(
+  { payTo: process.env.WALLET_ADDRESS!, network: "base" },
+  {
+    "/api/support": {
+      amount: "1.00",       // minimum floor in USDC
+      mode: "minimum",
+      description: "Support this project",
+      // amountParam: "amount" is the default — client sends ?amount=5.00
+    },
+  }
+)(async (req) => {
+  const chosen = new URL(req.url).searchParams.get("amount") ?? "1.00";
+  return NextResponse.json({ message: `Thank you for your ${chosen} USDC support!` });
+});
+```
+
+```ts
+// Client — using x402-fetch
+import { wrapFetchWithPayment } from "x402-fetch";
+const fetch402 = wrapFetchWithPayment(fetch, wallet);
+
+// User picked $5 on the UI
+await fetch402("/api/support?amount=5.00", { method: "POST" });
+```
+
+**What happens on the wire:**
+1. Client calls `POST /api/support?amount=5.00`
+2. Server resolves $5.00 (≥ $1.00 minimum ✓), returns `402` with requirements for exactly $5.00
+3. `x402-fetch` prompts wallet → user approves $5.00 USDC payment on Base
+4. Client retries with `X-PAYMENT` proof header
+5. Server verifies the $5.00 on-chain payment → returns thank-you response
+
+**Validation errors (amount below minimum):**
+If the client sends `?amount=0.50` (below $1.00 floor), the server returns:
+```json
+{ "error": "Amount 0.50 USDC is below the minimum of 1.00 USDC" }
+```
+The UI should validate amounts before calling the endpoint to give users a better experience.
+
+See `examples/nextjs-support-page/` for a full working support page with tier buttons and a custom amount input.
+
+---
+
 ## Configuration Reference
 
 ### `X402Config`
@@ -167,8 +216,20 @@ app.get("/download/:file", (req, res) => {
 A record of path patterns to payment rules. Supports:
 
 ```ts
-type RouteMap = Record<string, string | { amount: string; description?: string }>;
+type PaymentMode = "exact" | "minimum";
+
+type RouteMap = Record<string, string | {
+  amount: string;
+  mode?: PaymentMode;      // default: "exact"
+  description?: string;
+  amountParam?: string;    // default: "amount" — query param for client amount in "minimum" mode
+}>;
 ```
+
+| `mode` | Behaviour |
+|--------|-----------|
+| `"exact"` | Client must pay exactly `amount`. Use for content gating (downloads, API access). |
+| `"minimum"` | Client may pay `amount` or more. Use for support buttons and donations. |
 
 **Path matching rules:**
 - Exact paths take priority over patterns: `/download/premium.svg` matches before `/download/*`
@@ -179,17 +240,20 @@ type RouteMap = Record<string, string | { amount: string; description?: string }
 **Examples:**
 ```ts
 const routes = {
-  // Shorthand: just the amount
+  // Shorthand string — always "exact" mode
   "/download/*": "0.25",
 
-  // Full rule: amount + wallet UI description
+  // Exact mode with description
   "/export/pdf": { amount: "0.50", description: "PDF report" },
 
-  // Exact path takes priority — different price for premium asset
+  // Exact path takes priority over the wildcard above
   "/download/premium.svg": { amount: "1.00", description: "Premium SVG" },
 
-  // Multi-level wildcard
-  "/api/v1/**": "0.10",
+  // Donation — user pays 1 USDC or more via ?amount= query param
+  "/support": { amount: "1.00", mode: "minimum", description: "Support this project" },
+
+  // Custom param name — client sends ?tip=5.00 instead of ?amount=5.00
+  "/tip": { amount: "0.50", mode: "minimum", amountParam: "tip" },
 };
 ```
 

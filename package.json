@@ -1,0 +1,69 @@
+{
+  "name": "@trango/x402-middleware",
+  "version": "0.1.0",
+  "description": "Framework-agnostic X402 stablecoin payment middleware for Hono, Next.js, and Express",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./hono": {
+      "import": "./dist/adapters/hono.js",
+      "require": "./dist/adapters/hono.cjs",
+      "types": "./dist/adapters/hono.d.ts"
+    },
+    "./next": {
+      "import": "./dist/adapters/next.js",
+      "require": "./dist/adapters/next.cjs",
+      "types": "./dist/adapters/next.d.ts"
+    },
+    "./express": {
+      "import": "./dist/adapters/express.js",
+      "require": "./dist/adapters/express.cjs",
+      "types": "./dist/adapters/express.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "x402",
+    "payment",
+    "stablecoin",
+    "usdc",
+    "middleware",
+    "hono",
+    "nextjs",
+    "express",
+    "base",
+    "blockchain",
+    "micropayments"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "express": "^4.21.0",
+    "hono": "^4.7.0",
+    "next": "^15.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.8.0"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0",
+    "hono": ">=4.0.0",
+    "next": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": { "optional": true },
+    "hono": { "optional": true },
+    "next": { "optional": true }
+  }
+}

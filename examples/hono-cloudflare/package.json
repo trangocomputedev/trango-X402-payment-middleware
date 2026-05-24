@@ -1,0 +1,16 @@
+{
+  "name": "x402-hono-cloudflare-example",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@trango/x402-middleware": "workspace:*",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

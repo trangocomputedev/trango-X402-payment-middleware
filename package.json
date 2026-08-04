@@ -46,7 +46,7 @@
     "blockchain",
     "micropayments"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^20.0.0",

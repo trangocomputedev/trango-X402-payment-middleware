@@ -1,6 +1,6 @@
 # @trango/x402-middleware
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 Framework-agnostic X402 stablecoin payment middleware. Gate any API endpoint or file download behind a USDC micropayment — verified on-chain before the request reaches your handler.
 
@@ -311,4 +311,4 @@ examples/
 
 ## License
 
-MIT — [Trango Compute](https://trango-compute.com)
+Apache License, Version 2.0 — [Trango Compute](https://trango-compute.com)

@@ -3,9 +3,28 @@
   "version": "0.1.0",
   "description": "Framework-agnostic X402 stablecoin payment middleware for Hono, Next.js, and Express",
   "type": "module",
+  "author": "Trango Compute <trango@trango-compute.com>",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/trangocomputedev/trango-X402-payment-middleware#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trangocomputedev/trango-X402-payment-middleware.git"
+  },
+  "bugs": {
+    "url": "https://github.com/trangocomputedev/trango-X402-payment-middleware/issues"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -31,7 +50,10 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
   },
   "keywords": [
     "x402",
@@ -46,7 +68,6 @@
     "blockchain",
     "micropayments"
   ],
-  "license": "Apache-2.0",
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^20.0.0",
@@ -54,7 +75,8 @@
     "hono": "^4.7.0",
     "next": "^15.0.0",
     "tsup": "^8.4.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.7"
   },
   "peerDependencies": {
     "express": ">=4.0.0",
@@ -62,8 +84,14 @@
     "next": ">=14.0.0"
   },
   "peerDependenciesMeta": {
-    "express": { "optional": true },
-    "hono": { "optional": true },
-    "next": { "optional": true }
+    "express": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    }
   }
 }

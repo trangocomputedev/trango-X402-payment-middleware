@@ -44,7 +44,7 @@ export function withX402(config: X402Config, routes: RouteMap) {
         return NextResponse.json({ error: resolveError }, { status: 402 });
       }
 
-      const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description, payment.discovery);
+      const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description);
       if (!result.valid) {
         const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
         return NextResponse.json(

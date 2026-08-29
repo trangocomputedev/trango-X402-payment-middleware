@@ -7,8 +7,7 @@ export function buildPaymentRequirements(
   config: X402Config,
   resource: string,
   amount: string,
-  description?: string,
-  discovery?: BazaarDiscoveryConfig
+  description?: string
 ): PaymentRequirements | PaymentRequirementsV2 {
   const network = getNetworkConfig(config.network);
   const amountAtomic = toAtomicUnits(amount, network.usdcDecimals);
@@ -22,13 +21,7 @@ export function buildPaymentRequirements(
       payTo: config.payTo,
       asset: network.usdcAddress,
       maxTimeoutSeconds: 300,
-      // Per spec, extra holds only the EIP-712 domain fields — resource/description/
-      // mimeType live once on the v2 envelope (see buildPaymentRequiredV2), not here.
-      extra: {
-        name: "USDC",
-        version: "2",
-        ...(discovery ? declareDiscoveryExtension(discovery) : {}),
-      },
+      extra: { name: "USDC", version: "2" },
     };
   }
 
@@ -48,6 +41,9 @@ export function buildPaymentRequirements(
 
 // The full v2 402 envelope (github.com/coinbase/x402/blob/main/specs/transports-v2/http.md):
 // resource is envelope-level, shared by every accept option, not duplicated per entry.
+// extensions.bazaar is envelope-level too — confirmed empirically (see PaymentRequiredV2's
+// doc comment in types.ts) after Coinbase's live validator rejected an earlier version of
+// this package that nested it under accepts[0].extra.bazaar instead.
 export function buildPaymentRequiredV2(
   config: X402Config,
   resource: string,
@@ -60,7 +56,8 @@ export function buildPaymentRequiredV2(
     x402Version: 2,
     error: "Payment required",
     resource: { url: resource, description: resolvedDescription, mimeType: "*/*" },
-    accepts: [buildPaymentRequirements(config, resource, amount, description, discovery) as PaymentRequirementsV2],
+    accepts: [buildPaymentRequirements(config, resource, amount, description) as PaymentRequirementsV2],
+    extensions: discovery ? declareDiscoveryExtension(discovery) : undefined,
   };
 }
 
@@ -76,7 +73,7 @@ export function build402Body(
   }
   return {
     x402Version: 1,
-    accepts: [buildPaymentRequirements(config, resource, amount, description, discovery)],
+    accepts: [buildPaymentRequirements(config, resource, amount, description)],
     error: "Payment required",
   };
 }

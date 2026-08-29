@@ -50,27 +50,9 @@ describe("buildPaymentRequirements — wireVersion 2", () => {
     expect(req).not.toHaveProperty("resource");
   });
 
-  it("extra holds only name/version (+bazaar) — not resource/description/mimeType", () => {
+  it("extra holds only name/version — not resource/description/mimeType, and never bazaar", () => {
     const req = buildPaymentRequirements(v2Config, "/r", "0.25", "desc") as PaymentRequirementsV2;
-    expect(req.extra.name).toBe("USDC");
-    expect(req.extra.version).toBe("2");
-    expect(req.extra).not.toHaveProperty("resource");
-    expect(req.extra).not.toHaveProperty("description");
-    expect(req.extra).not.toHaveProperty("mimeType");
-  });
-
-  it("omits the bazaar extension when no discovery config is given", () => {
-    const req = buildPaymentRequirements(v2Config, "/r", "0.25") as PaymentRequirementsV2;
-    expect(req.extra.bazaar).toBeUndefined();
-  });
-
-  it("includes the bazaar extension under extra when discovery is given", () => {
-    const req = buildPaymentRequirements(v2Config, "/r", "0.25", "desc", {
-      method: "GET",
-      output: { example: { ok: true } },
-    }) as PaymentRequirementsV2;
-    expect(req.extra.bazaar?.info.input?.method).toBe("GET");
-    expect(req.extra.bazaar?.info.output?.example).toEqual({ ok: true });
+    expect(req.extra).toEqual({ name: "USDC", version: "2" });
   });
 });
 
@@ -86,6 +68,21 @@ describe("build402Body — wireVersion 2", () => {
     const body = buildPaymentRequiredV2(v2Config, "https://example.com/r", "0.25", "desc");
     expect(body.resource).toEqual({ url: "https://example.com/r", description: "desc", mimeType: "*/*" });
     expect(body.accepts[0]).not.toHaveProperty("resource");
+  });
+
+  it("omits extensions when no discovery config is given", () => {
+    const body = buildPaymentRequiredV2(v2Config, "/r", "0.25");
+    expect(body.extensions).toBeUndefined();
+  });
+
+  it("puts the bazaar extension under a top-level extensions field — confirmed against Coinbase's live validator, not accepts[].extra", () => {
+    const body = buildPaymentRequiredV2(v2Config, "/r", "0.25", "desc", {
+      method: "GET",
+      output: { example: { ok: true } },
+    });
+    expect(body.extensions?.bazaar.info.input?.method).toBe("GET");
+    expect(body.extensions?.bazaar.info.output?.example).toEqual({ ok: true });
+    expect(body.accepts[0].extra).toEqual({ name: "USDC", version: "2" });
   });
 });
 

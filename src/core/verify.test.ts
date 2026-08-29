@@ -53,7 +53,7 @@ describe("verifyPayment", () => {
     expect(result).toEqual({ valid: false, error: "Facilitator unreachable" });
   });
 
-  it("includes the discovery extension in the requirements submitted to the facilitator under wireVersion 2 — must match what the client signed against", async () => {
+  it("submits x402Version 2 and the v2-shaped per-entry requirements under wireVersion 2", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ isValid: true }),
@@ -61,11 +61,16 @@ describe("verifyPayment", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const v2Config: X402Config = { ...config, wireVersion: 2 };
-    await verifyPayment("header", v2Config, "/r", "0.25", "desc", { method: "GET" });
+    await verifyPayment("header", v2Config, "/r", "0.25", "desc");
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.x402Version).toBe(2);
-    expect(body.paymentRequirements.extra.bazaar).toBeDefined();
+    expect(body.paymentRequirements.network).toBe("eip155:8453");
+    expect(body.paymentRequirements.amount).toBe("250000");
+    // Bazaar's discovery extension is envelope-level (buildPaymentRequiredV2's
+    // "extensions" field) — verifyPayment only ever builds the per-entry requirements,
+    // so it never appears here regardless of whether the route declares discovery.
+    expect(body.paymentRequirements).not.toHaveProperty("extensions");
   });
 
   it("uses a custom facilitatorUrl when configured", async () => {

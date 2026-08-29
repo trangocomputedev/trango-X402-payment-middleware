@@ -35,7 +35,7 @@ export function x402Express(config: X402Config, routes: RouteMap) {
       return res.status(402).json({ error: resolveError });
     }
 
-    const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description, payment.discovery);
+    const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description);
     if (!result.valid) {
       const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
       if (headerValue) res.set("PAYMENT-REQUIRED", headerValue);

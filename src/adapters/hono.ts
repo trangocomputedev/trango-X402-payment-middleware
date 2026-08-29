@@ -39,7 +39,7 @@ export function x402Hono(config: X402Config, routes: RouteMap) {
       return c.json({ error: resolveError }, 402);
     }
 
-    const result = await verifyPayment(paymentHeader, config, c.req.url, payment.amount, payment.description, payment.discovery);
+    const result = await verifyPayment(paymentHeader, config, c.req.url, payment.amount, payment.description);
     if (!result.valid) {
       const headerValue = buildPaymentRequiredHeader(config, c.req.url, payment.amount, payment.description, payment.discovery);
       if (headerValue) c.header("PAYMENT-REQUIRED", headerValue);

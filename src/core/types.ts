@@ -111,21 +111,25 @@ export interface PaymentRequirementsV2 {
   payTo: string;
   asset: string;
   maxTimeoutSeconds: number;
-  // Per spec, extra holds only the EIP-712 domain fields for "exact" on EVM. The Bazaar
-  // extension is Coinbase-specific and not part of the core spec — its placement here is
-  // a best guess pending confirmation via validateDiscoveryExtension() against a real route.
+  // Per spec, extra holds only the EIP-712 domain fields for "exact" on EVM.
   extra: {
     name: string;
     version: string;
-    bazaar?: BazaarExtension;
   };
 }
 
 // The full v2 402 envelope — what gets base64-encoded into the PAYMENT-REQUIRED header.
 // resource is envelope-level (one resource per response), not per accept entry.
+//
+// extensions.bazaar's placement here is empirically confirmed, not guessed: an earlier
+// version of this package nested the Bazaar extension under accepts[0].extra.bazaar, and
+// Coinbase's live validator (POST platform/v2/x402/validate) rejected a real deployed
+// route with every other v2 check passing and exactly one failing — "No bazaar extension
+// in top-level extensions object" — naming this exact location.
 export interface PaymentRequiredV2 {
   x402Version: 2;
   error: string;
   resource: { url: string; description: string; mimeType: string };
   accepts: PaymentRequirementsV2[];
+  extensions?: { bazaar: BazaarExtension };
 }

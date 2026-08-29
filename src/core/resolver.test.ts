@@ -46,6 +46,20 @@ describe("resolveAmount — minimum mode", () => {
   });
 });
 
+describe("resolveAmount — discovery passthrough", () => {
+  const discovery = { method: "GET" as const };
+
+  it("carries discovery config through in exact mode", () => {
+    expect(resolveAmount({ amount: "0.25", discovery }, null).payment.discovery).toBe(discovery);
+  });
+
+  it("carries discovery config through in minimum mode regardless of requested amount", () => {
+    const rule = { amount: "1.00", mode: "minimum" as const, discovery };
+    expect(resolveAmount(rule, null).payment.discovery).toBe(discovery);
+    expect(resolveAmount(rule, "5.00").payment.discovery).toBe(discovery);
+  });
+});
+
 describe("getAmountParam", () => {
   it("defaults to 'amount'", () => {
     expect(getAmountParam({ amount: "1.00", mode: "minimum" })).toBe("amount");

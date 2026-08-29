@@ -24,7 +24,7 @@ export function x402Express(config: X402Config, routes: RouteMap) {
     const paymentHeader = req.headers["x-payment"] as string | undefined;
 
     if (!paymentHeader) {
-      const body = build402Body(config, req.url, payment.amount, payment.description);
+      const body = build402Body(config, req.url, payment.amount, payment.description, payment.discovery);
       return res.status(402).json(resolveError ? { ...body, resolveError } : body);
     }
 
@@ -35,7 +35,7 @@ export function x402Express(config: X402Config, routes: RouteMap) {
     const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description);
     if (!result.valid) {
       return res.status(402).json({
-        ...build402Body(config, req.url, payment.amount, payment.description),
+        ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery),
         error: result.error,
       });
     }

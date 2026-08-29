@@ -28,7 +28,7 @@ export function x402Hono(config: X402Config, routes: RouteMap) {
     const paymentHeader = c.req.header("X-PAYMENT");
 
     if (!paymentHeader) {
-      const body = build402Body(config, c.req.url, payment.amount, payment.description);
+      const body = build402Body(config, c.req.url, payment.amount, payment.description, payment.discovery);
       return c.json(resolveError ? { ...body, resolveError } : body, 402);
     }
 
@@ -39,7 +39,7 @@ export function x402Hono(config: X402Config, routes: RouteMap) {
     const result = await verifyPayment(paymentHeader, config, c.req.url, payment.amount, payment.description);
     if (!result.valid) {
       return c.json(
-        { ...build402Body(config, c.req.url, payment.amount, payment.description), error: result.error ?? "Invalid payment" },
+        { ...build402Body(config, c.req.url, payment.amount, payment.description, payment.discovery), error: result.error ?? "Invalid payment" },
         402
       );
     }

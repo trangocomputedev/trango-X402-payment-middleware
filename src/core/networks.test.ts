@@ -10,6 +10,11 @@ describe("getNetworkConfig", () => {
     expect(getNetworkConfig("base-sepolia").isTestnet).toBe(true);
   });
 
+  it("exposes the CAIP-2 chain id for x402 v2", () => {
+    expect(getNetworkConfig("base").caip2).toBe("eip155:8453");
+    expect(getNetworkConfig("base-sepolia").caip2).toBe("eip155:84532");
+  });
+
   it("throws for an unsupported network", () => {
     // @ts-expect-error — testing runtime guard against invalid input
     expect(() => getNetworkConfig("ethereum")).toThrow(/Unsupported network/);

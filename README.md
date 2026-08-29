@@ -212,6 +212,7 @@ See `examples/nextjs-support-page/` for a full working support page with tier bu
 | `asset` | `"USDC"` | No | Payment asset (only USDC in v1) |
 | `facilitatorUrl` | `string` | No | Override the CDP facilitator endpoint |
 | `description` | `string` | No | Default description shown in wallet UI |
+| `wireVersion` | `1 \| 2` | No | 402 challenge wire format. Defaults to `1`. See [x402 Wire Version 2 & Bazaar Discovery](#x402-wire-version-2--bazaar-discovery) below. |
 
 ### `RouteMap`
 
@@ -261,6 +262,48 @@ const routes = {
 
 ---
 
+## x402 Wire Version 2 & Bazaar Discovery
+
+By default, every route emits an **x402 wire version 1** challenge — unchanged from prior versions of this package, and what most x402 clients and facilitators today still expect.
+
+Set `wireVersion: 2` on your config to emit the **x402 v2** challenge shape instead: a CAIP-2 network id (`eip155:8453` instead of `base`), an `amount` field instead of `maxAmountRequired`, and `resource`/`description`/`mimeType` nested under `extra` instead of top-level. This is required before Coinbase's Bazaar/Agent.market discovery will even consider a route — **Coinbase's own public validator rejects v1 challenges outright**, before checking anything else about them.
+
+```ts
+export const GET = withX402(
+  {
+    payTo: process.env.WALLET_ADDRESS!,
+    network: "base",
+    wireVersion: 2,
+  },
+  {
+    "/api/lookup": {
+      amount: "0.01",
+      description: "Agent lookup",
+      discovery: declareDiscoveryExtension({
+        method: "GET",
+        input: { type: "query", schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+        output: { example: { id: "1", found: true } },
+      }),
+    },
+  }
+)(handler);
+```
+
+`declareDiscoveryExtension()` builds the Bazaar discovery metadata that gets embedded in the v2 challenge's `extra.bazaar` field. Validate a real deployed route against Coinbase's public preflight check before relying on it:
+
+```ts
+import { validateDiscoveryExtension } from "@trango/x402-middleware";
+
+const result = await validateDiscoveryExtension("https://yourapp.com/api/lookup", "GET");
+console.log(result.valid, result.checks);
+```
+
+**Two things worth knowing before enabling this in production:**
+
+1. **The Bazaar extension shape is reverse-engineered, not documented.** Coinbase has not published a formal schema for the discovery extension payload — the shape above was derived from the field names Coinbase's own live validator checks for (`bazaar.info.input.type`, `bazaar.schema`, etc.), not from an official spec. Run `validateDiscoveryExtension()` against your real route rather than assuming this is exactly right.
+2. **A correctly-shaped v2 + Bazaar challenge is not a guarantee of appearing in the Bazaar catalog.** As of 2026-08-29, [x402-foundation/x402#2112](https://github.com/x402-foundation/x402/issues/2112) documents multiple independent, correctly-configured sellers whose services never got indexed — the CDP facilitator's `EXTENSION-RESPONSES` header and indexing pipeline appear to have an unresolved reliability problem on Coinbase's side, unrelated to how the challenge is built. This package gets you correctly discoverable; it can't fix Coinbase's indexing pipeline.
+3. **Payment settlement/verification under `wireVersion: 2` has not been confirmed against a real facilitator call.** The 402 challenge shape above is verified live against Coinbase's public validator. `verifyPayment()`'s actual settlement call to the facilitator has not been. Treat `wireVersion: 2` as safe for discovery-only routes today; test against a real funded wallet before relying on it for a route where you expect real paying clients.
+
 ## Client Side
 
 Users need a wallet that implements X402. The easiest option is Coinbase's `x402-fetch` package, which transparently handles the 402 → pay → retry flow:
@@ -295,8 +338,9 @@ src/
     types.ts      ← shared TypeScript types
     networks.ts   ← network configs and USDC addresses
     verify.ts     ← CDP facilitator verification
-    response.ts   ← 402 response builder
+    response.ts   ← 402 response builder (v1 and v2 wire formats)
     matcher.ts    ← path pattern matching
+    bazaar.ts     ← Bazaar discovery extension + live validator client
   adapters/
     hono.ts       ← Hono / Cloudflare Workers middleware
     next.ts       ← Next.js App Router HOF

@@ -13,13 +13,20 @@ export async function verifyPayment(
   const facilitatorUrl = config.facilitatorUrl ?? DEFAULT_FACILITATOR;
   const requirements = buildPaymentRequirements(config, resource, amount, description);
 
+  // NOTE on wireVersion 2: this sends x402Version 2 and the v2-shaped requirements
+  // above to the same v1 facilitator endpoint used for v1, since no v2-specific CDP
+  // settlement/verify endpoint has been confirmed. Unlike the 402-challenge shape
+  // (verified live against CDP's public Bazaar validator), this settlement path has
+  // NOT been confirmed against a real payment. Treat wireVersion 2 as safe for
+  // discovery-only routes today; verify against a real funded wallet before relying
+  // on it for a route where you actually expect paying clients.
   let res: Response;
   try {
     res = await fetch(facilitatorUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        x402Version: 1,
+        x402Version: config.wireVersion === 2 ? 2 : 1,
         paymentHeader,
         paymentRequirements: requirements,
       }),

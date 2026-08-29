@@ -7,6 +7,9 @@ export interface NetworkConfig {
   usdcDecimals: number;
   isTestnet: boolean;
   explorerUrl: string;
+  // CAIP-2 chain identifier ("eip155:<chainId>" for EVM chains) — the network
+  // id format x402 wire version 2 uses instead of the bare v1 network string.
+  caip2: string;
 }
 
 // Base mainnet and Base Sepolia are the networks the Coinbase CDP facilitator
@@ -19,6 +22,7 @@ export const NETWORKS: Record<SupportedNetwork, NetworkConfig> = {
     usdcDecimals: 6,
     isTestnet: false,
     explorerUrl: "https://basescan.org",
+    caip2: "eip155:8453",
   },
   "base-sepolia": {
     chainId: 84532,
@@ -27,6 +31,7 @@ export const NETWORKS: Record<SupportedNetwork, NetworkConfig> = {
     usdcDecimals: 6,
     isTestnet: true,
     explorerUrl: "https://sepolia.basescan.org",
+    caip2: "eip155:84532",
   },
 };
 

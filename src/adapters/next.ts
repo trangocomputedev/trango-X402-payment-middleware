@@ -31,7 +31,7 @@ export function withX402(config: X402Config, routes: RouteMap) {
       const paymentHeader = req.headers.get("X-PAYMENT");
 
       if (!paymentHeader) {
-        const body = build402Body(config, req.url, payment.amount, payment.description);
+        const body = build402Body(config, req.url, payment.amount, payment.description, payment.discovery);
         return NextResponse.json(resolveError ? { ...body, resolveError } : body, { status: 402 });
       }
 
@@ -42,7 +42,7 @@ export function withX402(config: X402Config, routes: RouteMap) {
       const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description);
       if (!result.valid) {
         return NextResponse.json(
-          { ...build402Body(config, req.url, payment.amount, payment.description), error: result.error },
+          { ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery), error: result.error },
           { status: 402 }
         );
       }

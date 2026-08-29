@@ -1,8 +1,9 @@
-import type { RouteValue, RouteRule } from "./types.js";
+import type { BazaarDiscoveryConfig, RouteValue, RouteRule } from "./types.js";
 
 export interface ResolvedPayment {
   amount: string;
   description?: string;
+  discovery?: BazaarDiscoveryConfig;
 }
 
 export interface ResolveResult {
@@ -32,7 +33,7 @@ export function resolveAmount(
 ): ResolveResult {
   const rule = toRule(routeValue);
   const mode = rule.mode ?? "exact";
-  const base: ResolvedPayment = { amount: rule.amount, description: rule.description };
+  const base: ResolvedPayment = { amount: rule.amount, description: rule.description, discovery: rule.discovery };
 
   if (mode === "exact") {
     return { payment: base };
@@ -57,7 +58,7 @@ export function resolveAmount(
     };
   }
 
-  return { payment: { amount: requestedAmount, description: rule.description } };
+  return { payment: { amount: requestedAmount, description: rule.description, discovery: rule.discovery } };
 }
 
 // Returns the query param name that carries the client-chosen amount.

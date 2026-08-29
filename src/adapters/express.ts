@@ -1,8 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyPayment } from "../core/verify.js";
-import { build402Body } from "../core/response.js";
+import { build402Body, buildPaymentRequiredHeader } from "../core/response.js";
 import { findMatchingRoute } from "../core/matcher.js";
 import { resolveAmount, getAmountParam } from "../core/resolver.js";
+import { paymentProofHeaderName } from "../core/protocol.js";
 import type { X402Config, RouteMap, RouteValue } from "../core/types.js";
 
 // Usage — content gating:
@@ -21,10 +22,12 @@ export function x402Express(config: X402Config, routes: RouteMap) {
     const requestedAmount = req.query[getAmountParam(routeValue)] as string | undefined;
     const { payment, error: resolveError } = resolveAmount(routeValue, requestedAmount);
 
-    const paymentHeader = req.headers["x-payment"] as string | undefined;
+    const paymentHeader = req.headers[paymentProofHeaderName(config).toLowerCase()] as string | undefined;
 
     if (!paymentHeader) {
       const body = build402Body(config, req.url, payment.amount, payment.description, payment.discovery);
+      const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
+      if (headerValue) res.set("PAYMENT-REQUIRED", headerValue);
       return res.status(402).json(resolveError ? { ...body, resolveError } : body);
     }
 
@@ -34,6 +37,8 @@ export function x402Express(config: X402Config, routes: RouteMap) {
 
     const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description, payment.discovery);
     if (!result.valid) {
+      const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
+      if (headerValue) res.set("PAYMENT-REQUIRED", headerValue);
       return res.status(402).json({
         ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery),
         error: result.error,

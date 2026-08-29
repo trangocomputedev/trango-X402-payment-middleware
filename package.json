@@ -1,6 +1,6 @@
 {
   "name": "@trango/x402-middleware",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Framework-agnostic X402 stablecoin payment middleware for Hono, Next.js, and Express",
   "type": "module",
   "author": "Trango Compute <trango@trango-compute.com>",

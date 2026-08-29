@@ -76,3 +76,44 @@ describe("withX402", () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 });
+
+describe("withX402 — wireVersion 2", () => {
+  const v2Config: X402Config = { payTo: "0xWallet", network: "base", wireVersion: 2 };
+
+  it("sets a PAYMENT-REQUIRED header on the 402 response, base64-encoding the v2 envelope", async () => {
+    const gated = withX402(v2Config, routes)(handler);
+    const res = await gated(new NextRequest("https://example.com/api/download/file.svg"));
+    expect(res.status).toBe(402);
+    const header = res.headers.get("PAYMENT-REQUIRED");
+    expect(header).toBeTruthy();
+    const decoded = JSON.parse(Buffer.from(header!, "base64").toString("utf-8"));
+    expect(decoded.x402Version).toBe(2);
+    expect(decoded.resource.url).toBe("https://example.com/api/download/file.svg");
+  });
+
+  it("ignores X-PAYMENT and looks for PAYMENT-SIGNATURE instead", async () => {
+    const gated = withX402(v2Config, routes)(handler);
+    const res = await gated(
+      new NextRequest("https://example.com/api/download/file.svg", { headers: { "X-PAYMENT": "proof" } })
+    );
+    // X-PAYMENT is the wrong header under v2 — still treated as unpaid, still 402.
+    expect(res.status).toBe(402);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("calls the handler when a valid PAYMENT-SIGNATURE is presented", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ isValid: true, txHash: "0xabc" }) })
+    );
+
+    const gated = withX402(v2Config, routes)(handler);
+    const res = await gated(
+      new NextRequest("https://example.com/api/download/file.svg", {
+        headers: { "PAYMENT-SIGNATURE": "proof" },
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(handler).toHaveBeenCalledOnce();
+  });
+});

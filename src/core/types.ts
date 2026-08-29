@@ -1,10 +1,18 @@
 export type SupportedNetwork = "base" | "base-sepolia";
 
-// The x402 wire format version emitted in the 402 challenge body.
-// v1 (default): bare network string, "maxAmountRequired", top-level resource/description/mimeType.
-// v2: CAIP-2 network id ("eip155:8453"), "amount", resource/description/mimeType nested under "extra".
-// Coinbase's Bazaar discovery validator (platform/v2/x402/validate) rejects v1 challenges outright —
-// v2 is required before a route can be considered for Bazaar/Agent.market discovery at all.
+// The x402 wire format version emitted for a 402 challenge.
+// v1 (default): body-only. Bare network string, "maxAmountRequired", top-level
+// resource/description/mimeType per accept entry. Payment proof arrives via X-PAYMENT.
+// v2: per the official spec (github.com/coinbase/x402/blob/main/specs/transports-v2/http.md,
+// verified 2026-08-29) — the protocol-relevant payload is NOT the JSON body. It's a
+// base64-encoded PaymentRequired object in a PAYMENT-REQUIRED response header:
+// { x402Version: 2, error?, resource: { url, description, mimeType }, accepts: [...] }
+// where each accepts[] entry uses a CAIP-2 network id ("eip155:8453"), "amount" instead
+// of "maxAmountRequired", and an extra bag holding only { name, version } (resource/
+// description/mimeType live once on the envelope, not per accept entry). The client's
+// payment proof arrives via PAYMENT-SIGNATURE, not X-PAYMENT. Coinbase's Bazaar discovery
+// validator (platform/v2/x402/validate) requires the header — it will not evaluate
+// anything else about a route, including discovery-extension checks, without it.
 export type X402WireVersion = 1 | 2;
 
 export interface X402Config {
@@ -103,12 +111,21 @@ export interface PaymentRequirementsV2 {
   payTo: string;
   asset: string;
   maxTimeoutSeconds: number;
+  // Per spec, extra holds only the EIP-712 domain fields for "exact" on EVM. The Bazaar
+  // extension is Coinbase-specific and not part of the core spec — its placement here is
+  // a best guess pending confirmation via validateDiscoveryExtension() against a real route.
   extra: {
     name: string;
     version: string;
-    resource: string;
-    description: string;
-    mimeType: string;
     bazaar?: BazaarExtension;
   };
+}
+
+// The full v2 402 envelope — what gets base64-encoded into the PAYMENT-REQUIRED header.
+// resource is envelope-level (one resource per response), not per accept entry.
+export interface PaymentRequiredV2 {
+  x402Version: 2;
+  error: string;
+  resource: { url: string; description: string; mimeType: string };
+  accepts: PaymentRequirementsV2[];
 }

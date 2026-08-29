@@ -266,7 +266,13 @@ const routes = {
 
 By default, every route emits an **x402 wire version 1** challenge — unchanged from prior versions of this package, and what most x402 clients and facilitators today still expect.
 
-Set `wireVersion: 2` on your config to emit the **x402 v2** challenge shape instead: a CAIP-2 network id (`eip155:8453` instead of `base`), an `amount` field instead of `maxAmountRequired`, and `resource`/`description`/`mimeType` nested under `extra` instead of top-level. This is required before Coinbase's Bazaar/Agent.market discovery will even consider a route — **Coinbase's own public validator rejects v1 challenges outright**, before checking anything else about them.
+Set `wireVersion: 2` on your config to emit the **x402 v2** challenge instead, per the [official transport spec](https://github.com/coinbase/x402/blob/main/specs/transports-v2/http.md) (verified against the raw spec text 2026-08-29 — not a paraphrase). Three things change under v2, and all three matter — missing any one leaves the route unpayable by a compliant v2 client even if the JSON body looks right:
+
+1. **The protocol payload moves to a header.** The spec calls the response body "a server implementation concern" — the actual `PaymentRequired` object is base64-encoded JSON in a `PAYMENT-REQUIRED` response header. This package sets that header automatically for you; it also still writes a JSON body for convenience/debugging, but only the header is protocol-relevant.
+2. **`resource`/`description`/`mimeType` live once, on the envelope** — `{ x402Version: 2, resource: { url, description, mimeType }, accepts: [...] }` — not per accept option, and not nested under `extra`. Each `accepts[]` entry uses a CAIP-2 network id (`eip155:8453` instead of `base`), `amount` instead of `maxAmountRequired`, and an `extra` bag holding only `{ name, version }` (plus this package's Bazaar extension, see below).
+3. **The client's payment proof arrives via a different header.** v1 clients send `X-PAYMENT`; v2 clients send `PAYMENT-SIGNATURE`. This package reads the correct one automatically based on `wireVersion` — but if you're testing manually with curl, remember to send the v2 header name.
+
+Getting this right is required before Coinbase's Bazaar/Agent.market discovery will even consider a route — **Coinbase's own public validator rejects a request outright if the `PAYMENT-REQUIRED` header is missing**, before checking anything else about it, including any discovery extension.
 
 ```ts
 export const GET = withX402(
@@ -300,11 +306,12 @@ const result = await validateDiscoveryExtension("https://yourapp.com/api/lookup"
 console.log(result.valid, result.checks);
 ```
 
-**Two things worth knowing before enabling this in production:**
+**Things worth knowing before enabling this in production:**
 
-1. **The Bazaar extension shape is reverse-engineered, not documented.** Coinbase has not published a formal schema for the discovery extension payload — the shape above was derived from the field names Coinbase's own live validator checks for (`bazaar.info.input.type`, `bazaar.schema`, etc.), not from an official spec. Run `validateDiscoveryExtension()` against your real route rather than assuming this is exactly right.
-2. **A correctly-shaped v2 + Bazaar challenge is not a guarantee of appearing in the Bazaar catalog.** As of 2026-08-29, [x402-foundation/x402#2112](https://github.com/x402-foundation/x402/issues/2112) documents multiple independent, correctly-configured sellers whose services never got indexed — the CDP facilitator's `EXTENSION-RESPONSES` header and indexing pipeline appear to have an unresolved reliability problem on Coinbase's side, unrelated to how the challenge is built. This package gets you correctly discoverable; it can't fix Coinbase's indexing pipeline.
-3. **Payment settlement/verification under `wireVersion: 2` has not been confirmed against a real facilitator call.** The 402 challenge shape above is verified live against Coinbase's public validator. `verifyPayment()`'s actual settlement call to the facilitator has not been. Treat `wireVersion: 2` as safe for discovery-only routes today; test against a real funded wallet before relying on it for a route where you expect real paying clients.
+1. **The Bazaar extension shape (the `bazaar` field under `extra`) is reverse-engineered, not documented.** Coinbase has not published a formal schema for the discovery extension payload. An earlier version of this package guessed at this shape *and* got the envelope structure wrong (no `PAYMENT-REQUIRED` header, `resource` nested under `extra` instead of on the envelope) — Coinbase's validator never even reached the Bazaar-specific checks against that version, since it rejects a request at the header check before evaluating anything else. The envelope structure above is now grounded in the official spec text, not reverse-engineered. The `bazaar` field's exact shape is still a best-effort guess pending confirmation — run `validateDiscoveryExtension()` against your real route rather than assuming it's exactly right.
+2. **A correctly-shaped v2 + Bazaar challenge is not a guarantee of appearing in the Bazaar catalog.** As of 2026-08-29, [x402-foundation/x402#2112](https://github.com/x402-foundation/x402/issues/2112) documents multiple independent, correctly-configured sellers whose services never got indexed — the CDP facilitator's indexing pipeline appears to have an unresolved reliability problem on Coinbase's side, unrelated to how the challenge is built. This package gets you correctly discoverable; it can't fix Coinbase's indexing pipeline.
+3. **Payment settlement under `wireVersion: 2` has not been confirmed against a real facilitator call with a real payment.** `verifyPayment()` reads the client's proof from the correct header (`PAYMENT-SIGNATURE`) and forwards it to the facilitator, but no live settlement has been exercised end-to-end. Treat `wireVersion: 2` as safe for discovery-only routes today; test with a real funded wallet before relying on it for a route where you expect real paying clients.
+4. **`PAYMENT-RESPONSE` (the settlement receipt header) is not implemented.** The spec defines a `PAYMENT-RESPONSE` header for communicating settlement success/failure after a successful payment. This package currently returns settlement results in the JSON response body only — fine for a discovery-only pilot, incomplete for a fully spec-compliant v2 flow.
 
 ## Client Side
 
@@ -343,6 +350,8 @@ src/
     response.ts   ← 402 response builder (v1 and v2 wire formats)
     matcher.ts    ← path pattern matching
     bazaar.ts     ← Bazaar discovery extension + live validator client
+    protocol.ts   ← payment-proof header name per wire version
+    base64.ts     ← UTF-8-safe base64 encode (Node/edge/Workers)
   adapters/
     hono.ts       ← Hono / Cloudflare Workers middleware
     next.ts       ← Next.js App Router HOF

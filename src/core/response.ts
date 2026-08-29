@@ -1,5 +1,6 @@
-import type { BazaarDiscoveryConfig, PaymentRequirements, PaymentRequirementsV2, X402Config } from "./types.js";
+import type { BazaarDiscoveryConfig, PaymentRequirements, PaymentRequirementsV2, PaymentRequiredV2, X402Config } from "./types.js";
 import { declareDiscoveryExtension } from "./bazaar.js";
+import { encodeBase64 } from "./base64.js";
 import { getNetworkConfig, toAtomicUnits } from "./networks.js";
 
 export function buildPaymentRequirements(
@@ -21,12 +22,11 @@ export function buildPaymentRequirements(
       payTo: config.payTo,
       asset: network.usdcAddress,
       maxTimeoutSeconds: 300,
+      // Per spec, extra holds only the EIP-712 domain fields — resource/description/
+      // mimeType live once on the v2 envelope (see buildPaymentRequiredV2), not here.
       extra: {
         name: "USDC",
         version: "2",
-        resource,
-        description: resolvedDescription,
-        mimeType: "*/*",
         ...(discovery ? declareDiscoveryExtension(discovery) : {}),
       },
     };
@@ -46,6 +46,24 @@ export function buildPaymentRequirements(
   };
 }
 
+// The full v2 402 envelope (github.com/coinbase/x402/blob/main/specs/transports-v2/http.md):
+// resource is envelope-level, shared by every accept option, not duplicated per entry.
+export function buildPaymentRequiredV2(
+  config: X402Config,
+  resource: string,
+  amount: string,
+  description?: string,
+  discovery?: BazaarDiscoveryConfig
+): PaymentRequiredV2 {
+  const resolvedDescription = description ?? config.description ?? "Content access";
+  return {
+    x402Version: 2,
+    error: "Payment required",
+    resource: { url: resource, description: resolvedDescription, mimeType: "*/*" },
+    accepts: [buildPaymentRequirements(config, resource, amount, description, discovery) as PaymentRequirementsV2],
+  };
+}
+
 export function build402Body(
   config: X402Config,
   resource: string,
@@ -53,9 +71,29 @@ export function build402Body(
   description?: string,
   discovery?: BazaarDiscoveryConfig
 ) {
+  if (config.wireVersion === 2) {
+    return buildPaymentRequiredV2(config, resource, amount, description, discovery);
+  }
   return {
-    x402Version: config.wireVersion === 2 ? 2 : 1,
+    x402Version: 1,
     accepts: [buildPaymentRequirements(config, resource, amount, description, discovery)],
     error: "Payment required",
   };
+}
+
+// The x402 v2 spec puts the protocol-relevant payload in this header, base64-encoded —
+// not in the response body, which the spec calls "a server implementation concern".
+// Coinbase's Bazaar discovery validator will not evaluate anything about a route
+// (including discovery-extension checks) without this header present. Returns undefined
+// for wireVersion 1, where no such header exists.
+export function buildPaymentRequiredHeader(
+  config: X402Config,
+  resource: string,
+  amount: string,
+  description?: string,
+  discovery?: BazaarDiscoveryConfig
+): string | undefined {
+  if (config.wireVersion !== 2) return undefined;
+  const envelope = buildPaymentRequiredV2(config, resource, amount, description, discovery);
+  return encodeBase64(JSON.stringify(envelope));
 }

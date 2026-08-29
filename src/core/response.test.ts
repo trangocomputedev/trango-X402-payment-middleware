@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildPaymentRequirements, build402Body } from "./response.js";
+import { buildPaymentRequirements, build402Body, buildPaymentRequiredV2, buildPaymentRequiredHeader } from "./response.js";
+import { encodeBase64 } from "./base64.js";
 import type { X402Config, PaymentRequirements, PaymentRequirementsV2 } from "./types.js";
 
 const config: X402Config = { payTo: "0xWallet", network: "base" };
@@ -49,11 +50,13 @@ describe("buildPaymentRequirements — wireVersion 2", () => {
     expect(req).not.toHaveProperty("resource");
   });
 
-  it("nests resource, description, and mimeType under extra", () => {
+  it("extra holds only name/version (+bazaar) — not resource/description/mimeType", () => {
     const req = buildPaymentRequirements(v2Config, "/r", "0.25", "desc") as PaymentRequirementsV2;
-    expect(req.extra.resource).toBe("/r");
-    expect(req.extra.description).toBe("desc");
-    expect(req.extra.mimeType).toBe("*/*");
+    expect(req.extra.name).toBe("USDC");
+    expect(req.extra.version).toBe("2");
+    expect(req.extra).not.toHaveProperty("resource");
+    expect(req.extra).not.toHaveProperty("description");
+    expect(req.extra).not.toHaveProperty("mimeType");
   });
 
   it("omits the bazaar extension when no discovery config is given", () => {
@@ -72,8 +75,44 @@ describe("buildPaymentRequirements — wireVersion 2", () => {
 });
 
 describe("build402Body — wireVersion 2", () => {
+  const v2Config: X402Config = { payTo: "0xWallet", network: "base", wireVersion: 2 };
+
   it("sets x402Version to 2", () => {
-    const body = build402Body({ payTo: "0xWallet", network: "base", wireVersion: 2 }, "/r", "0.25");
+    const body = build402Body(v2Config, "/r", "0.25");
     expect(body.x402Version).toBe(2);
+  });
+
+  it("puts resource/description/mimeType on the envelope, not per accept entry", () => {
+    const body = buildPaymentRequiredV2(v2Config, "https://example.com/r", "0.25", "desc");
+    expect(body.resource).toEqual({ url: "https://example.com/r", description: "desc", mimeType: "*/*" });
+    expect(body.accepts[0]).not.toHaveProperty("resource");
+  });
+});
+
+describe("buildPaymentRequiredHeader", () => {
+  it("returns undefined under wireVersion 1", () => {
+    expect(buildPaymentRequiredHeader(config, "/r", "0.25")).toBeUndefined();
+  });
+
+  it("returns base64-encoded JSON of the v2 envelope under wireVersion 2", () => {
+    const v2Config: X402Config = { payTo: "0xWallet", network: "base", wireVersion: 2 };
+    const header = buildPaymentRequiredHeader(v2Config, "https://example.com/r", "0.25", "desc");
+    expect(header).toBeDefined();
+    const decoded = JSON.parse(Buffer.from(header!, "base64").toString("utf-8"));
+    expect(decoded).toEqual(buildPaymentRequiredV2(v2Config, "https://example.com/r", "0.25", "desc"));
+  });
+
+  it("round-trips non-ASCII characters correctly (e.g. an em dash in the description)", () => {
+    const v2Config: X402Config = { payTo: "0xWallet", network: "base", wireVersion: 2 };
+    const header = buildPaymentRequiredHeader(v2Config, "/r", "0.25", "Policy Check — per call")!;
+    const decoded = JSON.parse(Buffer.from(header, "base64").toString("utf-8"));
+    expect(decoded.resource.description).toBe("Policy Check — per call");
+  });
+});
+
+describe("encodeBase64", () => {
+  it("matches Buffer-based base64 encoding for ASCII and non-ASCII input", () => {
+    expect(encodeBase64("hello")).toBe(Buffer.from("hello", "utf-8").toString("base64"));
+    expect(encodeBase64("— em dash —")).toBe(Buffer.from("— em dash —", "utf-8").toString("base64"));
   });
 });

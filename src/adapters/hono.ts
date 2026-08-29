@@ -1,9 +1,10 @@
 import { createMiddleware } from "hono/factory";
 import type { Context } from "hono";
 import { verifyPayment } from "../core/verify.js";
-import { build402Body } from "../core/response.js";
+import { build402Body, buildPaymentRequiredHeader } from "../core/response.js";
 import { findMatchingRoute } from "../core/matcher.js";
 import { resolveAmount, getAmountParam } from "../core/resolver.js";
+import { paymentProofHeaderName } from "../core/protocol.js";
 import type { X402Config, RouteMap, RouteValue } from "../core/types.js";
 
 // Usage — content gating:
@@ -25,10 +26,12 @@ export function x402Hono(config: X402Config, routes: RouteMap) {
     const requestedAmount = url.searchParams.get(getAmountParam(routeValue));
     const { payment, error: resolveError } = resolveAmount(routeValue, requestedAmount);
 
-    const paymentHeader = c.req.header("X-PAYMENT");
+    const paymentHeader = c.req.header(paymentProofHeaderName(config));
 
     if (!paymentHeader) {
       const body = build402Body(config, c.req.url, payment.amount, payment.description, payment.discovery);
+      const headerValue = buildPaymentRequiredHeader(config, c.req.url, payment.amount, payment.description, payment.discovery);
+      if (headerValue) c.header("PAYMENT-REQUIRED", headerValue);
       return c.json(resolveError ? { ...body, resolveError } : body, 402);
     }
 
@@ -38,6 +41,8 @@ export function x402Hono(config: X402Config, routes: RouteMap) {
 
     const result = await verifyPayment(paymentHeader, config, c.req.url, payment.amount, payment.description, payment.discovery);
     if (!result.valid) {
+      const headerValue = buildPaymentRequiredHeader(config, c.req.url, payment.amount, payment.description, payment.discovery);
+      if (headerValue) c.header("PAYMENT-REQUIRED", headerValue);
       return c.json(
         { ...build402Body(config, c.req.url, payment.amount, payment.description, payment.discovery), error: result.error ?? "Invalid payment" },
         402

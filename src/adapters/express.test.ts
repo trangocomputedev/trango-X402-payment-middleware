@@ -84,3 +84,44 @@ describe("x402Express", () => {
     expect(await res.text()).toBe("gated content");
   });
 });
+
+describe("x402Express — wireVersion 2", () => {
+  let v2Server: Server;
+  let v2BaseUrl: string;
+
+  beforeAll(async () => {
+    const app = express();
+    const v2Config: X402Config = { payTo: "0xWallet", network: "base", wireVersion: 2 };
+    app.use(x402Express(v2Config, { "/download/*": "0.25" }));
+    app.get("/download/:file", (_req, res) => res.send("gated content"));
+
+    await new Promise<void>((resolve) => {
+      v2Server = app.listen(0, () => resolve());
+    });
+    const address = v2Server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    v2BaseUrl = `http://127.0.0.1:${port}`;
+  });
+
+  afterAll(() => {
+    v2Server.close();
+  });
+
+  it("sets a PAYMENT-REQUIRED header and ignores X-PAYMENT", async () => {
+    const res = await realFetch(`${v2BaseUrl}/download/file.svg`, { headers: { "X-PAYMENT": "proof" } });
+    expect(res.status).toBe(402);
+    const header = res.headers.get("PAYMENT-REQUIRED");
+    expect(header).toBeTruthy();
+    const decoded = JSON.parse(Buffer.from(header!, "base64").toString("utf-8"));
+    expect(decoded.x402Version).toBe(2);
+  });
+
+  it("calls the handler when a valid PAYMENT-SIGNATURE is presented", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ isValid: true, txHash: "0xabc" }) })
+    );
+    const res = await realFetch(`${v2BaseUrl}/download/file.svg`, { headers: { "PAYMENT-SIGNATURE": "proof" } });
+    expect(res.status).toBe(200);
+  });
+});

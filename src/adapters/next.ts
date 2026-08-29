@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { verifyPayment } from "../core/verify.js";
-import { build402Body } from "../core/response.js";
+import { build402Body, buildPaymentRequiredHeader } from "../core/response.js";
 import { findMatchingRoute } from "../core/matcher.js";
 import { resolveAmount, getAmountParam } from "../core/resolver.js";
+import { paymentProofHeaderName } from "../core/protocol.js";
 import type { X402Config, RouteMap, RouteValue } from "../core/types.js";
 
 type RouteHandler = (req: NextRequest) => Promise<NextResponse> | NextResponse;
@@ -28,11 +29,15 @@ export function withX402(config: X402Config, routes: RouteMap) {
       const requestedAmount = url.searchParams.get(getAmountParam(routeValue));
       const { payment, error: resolveError } = resolveAmount(routeValue, requestedAmount);
 
-      const paymentHeader = req.headers.get("X-PAYMENT");
+      const paymentHeader = req.headers.get(paymentProofHeaderName(config));
 
       if (!paymentHeader) {
         const body = build402Body(config, req.url, payment.amount, payment.description, payment.discovery);
-        return NextResponse.json(resolveError ? { ...body, resolveError } : body, { status: 402 });
+        const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
+        return NextResponse.json(resolveError ? { ...body, resolveError } : body, {
+          status: 402,
+          headers: headerValue ? { "PAYMENT-REQUIRED": headerValue } : undefined,
+        });
       }
 
       if (resolveError) {
@@ -41,9 +46,10 @@ export function withX402(config: X402Config, routes: RouteMap) {
 
       const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description, payment.discovery);
       if (!result.valid) {
+        const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
         return NextResponse.json(
           { ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery), error: result.error },
-          { status: 402 }
+          { status: 402, headers: headerValue ? { "PAYMENT-REQUIRED": headerValue } : undefined }
         );
       }
 

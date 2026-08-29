@@ -79,3 +79,32 @@ describe("x402Hono", () => {
     expect(await res.text()).toBe("gated content");
   });
 });
+
+describe("x402Hono — wireVersion 2", () => {
+  function buildV2App() {
+    const app = new Hono();
+    const v2Config: X402Config = { payTo: "0xWallet", network: "base", wireVersion: 2 };
+    const gate = x402Hono(v2Config, { "/download/*": "0.25" });
+    app.use("/download/*", gate);
+    app.get("/download/:file", (c) => c.text("gated content"));
+    return app;
+  }
+
+  it("sets a PAYMENT-REQUIRED header and ignores X-PAYMENT", async () => {
+    const res = await buildV2App().request("/download/file.svg", { headers: { "X-PAYMENT": "proof" } });
+    expect(res.status).toBe(402);
+    const header = res.headers.get("PAYMENT-REQUIRED");
+    expect(header).toBeTruthy();
+    const decoded = JSON.parse(Buffer.from(header!, "base64").toString("utf-8"));
+    expect(decoded.x402Version).toBe(2);
+  });
+
+  it("calls the handler when a valid PAYMENT-SIGNATURE is presented", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ isValid: true, txHash: "0xabc" }) })
+    );
+    const res = await buildV2App().request("/download/file.svg", { headers: { "PAYMENT-SIGNATURE": "proof" } });
+    expect(res.status).toBe(200);
+  });
+});

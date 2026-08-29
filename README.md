@@ -279,17 +279,19 @@ export const GET = withX402(
     "/api/lookup": {
       amount: "0.01",
       description: "Agent lookup",
-      discovery: declareDiscoveryExtension({
+      // Raw discovery config on the route — the middleware calls
+      // declareDiscoveryExtension() internally when it builds the challenge.
+      discovery: {
         method: "GET",
         input: { type: "query", schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
         output: { example: { id: "1", found: true } },
-      }),
+      },
     },
   }
 )(handler);
 ```
 
-`declareDiscoveryExtension()` builds the Bazaar discovery metadata that gets embedded in the v2 challenge's `extra.bazaar` field. Validate a real deployed route against Coinbase's public preflight check before relying on it:
+Internally, `buildPaymentRequirements()`/`build402Body()` call `declareDiscoveryExtension()` on the route's `discovery` config to produce the `extra.bazaar` field — you only need to import `declareDiscoveryExtension()` yourself if you're building a challenge body outside the `RouteMap`/adapter flow (e.g. a custom adapter). Validate a real deployed route against Coinbase's public preflight check before relying on any of this:
 
 ```ts
 import { validateDiscoveryExtension } from "@trango/x402-middleware";

@@ -19,7 +19,10 @@ import type { BazaarDiscoveryConfig, BazaarExtension } from "./types.js";
 // when this preflight check passes. Always run validateDiscoveryExtension() below against
 // a real deployed route, and don't treat Bazaar listing as guaranteed even when it passes.
 export function declareDiscoveryExtension(config: BazaarDiscoveryConfig): { bazaar: BazaarExtension } {
-  const schema = config.input?.schema ?? config.output?.schema ?? { type: "object" };
+  // "schema" describes the input contract (sibling of info.input/info.output in the
+  // validator's check ordering) — deliberately not falling back to the output schema,
+  // since that would pass the presence check while describing the wrong thing.
+  const schema = config.input?.schema ?? { type: "object" };
 
   return {
     bazaar: {

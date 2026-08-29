@@ -53,6 +53,21 @@ describe("verifyPayment", () => {
     expect(result).toEqual({ valid: false, error: "Facilitator unreachable" });
   });
 
+  it("includes the discovery extension in the requirements submitted to the facilitator under wireVersion 2 — must match what the client signed against", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ isValid: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const v2Config: X402Config = { ...config, wireVersion: 2 };
+    await verifyPayment("header", v2Config, "/r", "0.25", "desc", { method: "GET" });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.x402Version).toBe(2);
+    expect(body.paymentRequirements.extra.bazaar).toBeDefined();
+  });
+
   it("uses a custom facilitatorUrl when configured", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

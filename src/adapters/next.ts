@@ -39,7 +39,7 @@ export function withX402(config: X402Config, routes: RouteMap) {
         return NextResponse.json({ error: resolveError }, { status: 402 });
       }
 
-      const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description);
+      const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description, payment.discovery);
       if (!result.valid) {
         return NextResponse.json(
           { ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery), error: result.error },

@@ -30,6 +30,16 @@ describe("declareDiscoveryExtension", () => {
     const ext = declareDiscoveryExtension({ method: "GET" });
     expect(ext.bazaar.info.output).toBeUndefined();
   });
+
+  it("does not fall back to the output schema for bazaar.schema when only output is given", () => {
+    const ext = declareDiscoveryExtension({
+      method: "GET",
+      output: { schema: { type: "object", properties: { result: { type: "string" } } } },
+    });
+    // bazaar.schema describes the input contract — an output-only schema here would
+    // pass the validator's presence check while describing the wrong thing.
+    expect(ext.bazaar.schema).toEqual({ type: "object" });
+  });
 });
 
 describe("validateDiscoveryExtension", () => {

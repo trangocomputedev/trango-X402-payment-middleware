@@ -36,7 +36,7 @@ export function x402Hono(config: X402Config, routes: RouteMap) {
       return c.json({ error: resolveError }, 402);
     }
 
-    const result = await verifyPayment(paymentHeader, config, c.req.url, payment.amount, payment.description);
+    const result = await verifyPayment(paymentHeader, config, c.req.url, payment.amount, payment.description, payment.discovery);
     if (!result.valid) {
       return c.json(
         { ...build402Body(config, c.req.url, payment.amount, payment.description, payment.discovery), error: result.error ?? "Invalid payment" },

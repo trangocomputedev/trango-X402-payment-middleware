@@ -32,7 +32,7 @@ export function x402Express(config: X402Config, routes: RouteMap) {
       return res.status(402).json({ error: resolveError });
     }
 
-    const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description);
+    const result = await verifyPayment(paymentHeader, config, req.url, payment.amount, payment.description, payment.discovery);
     if (!result.valid) {
       return res.status(402).json({
         ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery),

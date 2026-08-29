@@ -19,11 +19,24 @@ import type { BazaarDiscoveryConfig, BazaarExtension } from "./types.js";
 // the *input* schema's required fields missing — meaning `schema` describes the OUTPUT
 // contract, not the input, contrary to an earlier (unverified) assumption.
 //
-// Still unconfirmed: whether a correctly-shaped extension actually gets a route indexed
-// in the Bazaar catalog. x402-foundation/x402#2112 documents sellers whose correctly-
-// configured v2 challenges never got indexed regardless. Always run
-// validateDiscoveryExtension() below against a real deployed route before relying on any
-// of this, and don't treat a passing validator result as a guarantee of catalog listing.
+// Round 3, with schema now correctly mirroring output: "parse" still failed, reporting
+// every field in schema.required as missing — DESPITE output.example demonstrably
+// containing all of them. That's the signature of the check running against an empty
+// stand-in object rather than the real example. Confirmed by removing "required"
+// entirely (fields still declared, just not mandatory): "parse" passed, and
+// validateDiscoveryExtension() returned valid:true / simulation.outcome:"accepted" for
+// the first time. Conclusion: don't put a non-empty "required" array on the schema you
+// pass as config.output.schema — it appears to make this check unpassable regardless of
+// content, which looks like a limitation or bug in Coinbase's validator, not something
+// fixable from the caller's side. This isn't enforced here (Coinbase may fix it), but a
+// discovery config with output.schema.required will currently fail "parse" every time.
+//
+// Still unconfirmed even with valid:true: whether a correctly-shaped extension actually
+// gets a route indexed in the Bazaar catalog. x402-foundation/x402#2112 documents
+// sellers whose correctly-configured v2 challenges never got indexed regardless. Always
+// run validateDiscoveryExtension() below against a real deployed route before relying on
+// any of this, and don't treat a passing validator result as a guarantee of catalog
+// listing.
 export function declareDiscoveryExtension(config: BazaarDiscoveryConfig): { bazaar: BazaarExtension } {
   return {
     bazaar: {

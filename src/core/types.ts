@@ -37,15 +37,20 @@ export interface BazaarJsonSchema {
 }
 
 // Config for declareDiscoveryExtension(). This shape is reverse-engineered from
-// the check names returned live by Coinbase's public validator
+// the check names and error messages returned live by Coinbase's public validator
 // (POST https://api.cdp.coinbase.com/platform/v2/x402/validate) as of 2026-08-29 —
 // Coinbase has not published a formal schema for this extension payload. See
 // src/core/bazaar.ts for the full provenance note and validateDiscoveryExtension()
 // for a way to confirm this against a real route before relying on it.
+//
+// Note the asymmetry: "schema" (on BazaarExtension, not here) describes the OUTPUT
+// contract, not the input — confirmed empirically when the validator's "parse" check
+// tried to validate an output example against it and reported the input's required
+// fields as missing. There's no evidence input.schema is checked for anything beyond
+// its own presence.
 export interface BazaarDiscoveryConfig {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   input?: {
-    type: "query" | "path" | "body";
     schema: BazaarJsonSchema;
   };
   output?: {
@@ -56,9 +61,13 @@ export interface BazaarDiscoveryConfig {
 
 export interface BazaarExtension {
   info: {
-    input?: { type: string; method: string; schema?: BazaarJsonSchema };
+    // "http" confirmed live: the validator only evaluates info.input.method when
+    // info.input.type is exactly "http" — an earlier guess ("body"/"query"/"path",
+    // describing where params go rather than the transport) skipped that check.
+    input?: { type: "http"; method: string; schema?: BazaarJsonSchema };
     output?: { schema?: BazaarJsonSchema; example?: unknown };
   };
+  // Validated against output.example, not input — see the note on BazaarDiscoveryConfig.
   schema: BazaarJsonSchema;
 }
 

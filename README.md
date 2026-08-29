@@ -289,8 +289,13 @@ export const GET = withX402(
       // declareDiscoveryExtension() internally when it builds the challenge.
       discovery: {
         method: "GET",
-        input: { type: "query", schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-        output: { example: { id: "1", found: true } },
+        input: { schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+        // output.schema is what Coinbase's validator actually checks the example against —
+        // include it, not just an example, if you want the "parse" check to mean anything.
+        output: {
+          schema: { type: "object", properties: { id: { type: "string" }, found: { type: "boolean" } } },
+          example: { id: "1", found: true },
+        },
       },
     },
   }

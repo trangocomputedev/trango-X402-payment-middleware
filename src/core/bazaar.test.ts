@@ -2,20 +2,20 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { declareDiscoveryExtension, validateDiscoveryExtension } from "./bazaar.js";
 
 describe("declareDiscoveryExtension", () => {
-  it("defaults to a query-input shape when no input schema is given", () => {
+  it("always uses type 'http' for input, regardless of config", () => {
     const ext = declareDiscoveryExtension({ method: "GET" });
-    expect(ext.bazaar.info.input).toEqual({ type: "query", method: "GET" });
+    expect(ext.bazaar.info.input).toEqual({ type: "http", method: "GET", schema: undefined });
     expect(ext.bazaar.schema).toEqual({ type: "object" });
   });
 
-  it("uses the provided input schema and type/method", () => {
+  it("includes the input schema alongside type/method when given", () => {
     const ext = declareDiscoveryExtension({
       method: "POST",
-      input: { type: "body", schema: { type: "object", properties: { city: { type: "string" } } } },
+      input: { schema: { type: "object", properties: { city: { type: "string" } } } },
     });
-    expect(ext.bazaar.info.input?.type).toBe("body");
+    expect(ext.bazaar.info.input?.type).toBe("http");
     expect(ext.bazaar.info.input?.method).toBe("POST");
-    expect(ext.bazaar.schema).toEqual({ type: "object", properties: { city: { type: "string" } } });
+    expect(ext.bazaar.info.input?.schema).toEqual({ type: "object", properties: { city: { type: "string" } } });
   });
 
   it("includes output schema/example when given", () => {
@@ -31,13 +31,20 @@ describe("declareDiscoveryExtension", () => {
     expect(ext.bazaar.info.output).toBeUndefined();
   });
 
-  it("does not fall back to the output schema for bazaar.schema when only output is given", () => {
+  it("bazaar.schema describes the output contract, not the input — confirmed empirically against Coinbase's live validator", () => {
     const ext = declareDiscoveryExtension({
-      method: "GET",
+      method: "POST",
+      input: { schema: { type: "object", properties: { endpoint: { type: "string" } }, required: ["endpoint"] } },
       output: { schema: { type: "object", properties: { result: { type: "string" } } } },
     });
-    // bazaar.schema describes the input contract — an output-only schema here would
-    // pass the validator's presence check while describing the wrong thing.
+    expect(ext.bazaar.schema).toEqual({ type: "object", properties: { result: { type: "string" } } });
+  });
+
+  it("falls back to a permissive object schema when no output schema is given", () => {
+    const ext = declareDiscoveryExtension({
+      method: "POST",
+      input: { schema: { type: "object", properties: { endpoint: { type: "string" } }, required: ["endpoint"] } },
+    });
     expect(ext.bazaar.schema).toEqual({ type: "object" });
   });
 });

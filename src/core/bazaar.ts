@@ -3,38 +3,37 @@ import type { BazaarDiscoveryConfig, BazaarExtension } from "./types.js";
 // --- Provenance note ---
 // Coinbase has not published a formal schema for the Bazaar discovery extension
 // payload (the thing @x402/extensions/bazaar's declareDiscoveryExtension() produces
-// upstream). This implementation is reverse-engineered from the check names returned
-// live by Coinbase's own public validator as of 2026-08-29:
+// upstream). This shape was arrived at empirically, in two rounds, against a real
+// deployed route (https://contextiq.trango-compute.com/api/v2/policy-check) — not
+// guessed once and left unverified:
 //
-//   POST https://api.cdp.coinbase.com/platform/v2/x402/validate
-//   { "resource": "<url>", "method": "<GET|POST|...>" }
+// Round 1 nested the extension under accepts[0].extra.bazaar. The validator passed
+// every other v2 check and failed exactly one, naming the fix directly: "No bazaar
+// extension in top-level extensions object." Moved to { ...envelope, extensions: { bazaar } }.
 //
-// which reported (against a real endpoint, in order): has_bazaar_extension, bazaar.info,
-// bazaar.info.input, bazaar.info.input.type, bazaar.info.input.method, bazaar.info.output
-// (advisory), bazaar.info.output.example (advisory), bazaar.schema (required). The shape
-// below satisfies those checks by construction. It has not been confirmed against
-// Coinbase's actual `EXTENSION-RESPONSES` indexing pipeline — a documented, independently
-// reproduced bug (x402-foundation/x402#2112) means correctly-shaped v2 challenges with a
-// valid discovery extension have repeatedly failed to appear in the Bazaar catalog even
-// when this preflight check passes. Always run validateDiscoveryExtension() below against
-// a real deployed route, and don't treat Bazaar listing as guaranteed even when it passes.
+// Round 2, with that fixed, the validator evaluated every bazaar.* check for the first
+// time and reported two more problems by name: "bazaar.info.input.method" was skipped
+// because "input type is not http" (an earlier guess used "body"/"query"/"path" for
+// where request params go — wrong axis; input.type is the transport type, always "http"
+// here), and "parse" failed validating the output example against `schema` and reported
+// the *input* schema's required fields missing — meaning `schema` describes the OUTPUT
+// contract, not the input, contrary to an earlier (unverified) assumption.
+//
+// Still unconfirmed: whether a correctly-shaped extension actually gets a route indexed
+// in the Bazaar catalog. x402-foundation/x402#2112 documents sellers whose correctly-
+// configured v2 challenges never got indexed regardless. Always run
+// validateDiscoveryExtension() below against a real deployed route before relying on any
+// of this, and don't treat a passing validator result as a guarantee of catalog listing.
 export function declareDiscoveryExtension(config: BazaarDiscoveryConfig): { bazaar: BazaarExtension } {
-  // "schema" describes the input contract (sibling of info.input/info.output in the
-  // validator's check ordering) — deliberately not falling back to the output schema,
-  // since that would pass the presence check while describing the wrong thing.
-  const schema = config.input?.schema ?? { type: "object" };
-
   return {
     bazaar: {
       info: {
-        input: config.input
-          ? { type: config.input.type, method: config.method, schema: config.input.schema }
-          : { type: "query", method: config.method },
+        input: { type: "http", method: config.method, schema: config.input?.schema },
         output: config.output
           ? { schema: config.output.schema, example: config.output.example }
           : undefined,
       },
-      schema,
+      schema: config.output?.schema ?? { type: "object" },
     },
   };
 }

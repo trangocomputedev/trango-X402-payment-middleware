@@ -94,10 +94,33 @@ export type RouteValue = string | RouteRule;
 // Example: { "/api/download/*": "0.50", "/api/support": { amount: "1.00", mode: "minimum" } }
 export type RouteMap = Record<string, RouteValue>;
 
+// Matches the real facilitator /verify response (coinbase/x402
+// specs/x402-specification-v1.md section 7.1): {isValid, payer} on success,
+// {isValid: false, invalidReason, payer} on rejection. There is no txHash
+// here — /verify only validates the payment payload, it doesn't execute
+// anything on-chain. An earlier version of this file read a `txHash` field
+// off this response that the real facilitator never sends; that field has
+// been removed. The actual settlement transaction hash comes from
+// settlePayment()'s SettlementResponse below.
 export interface VerifyResult {
   valid: boolean;
-  txHash?: string;
+  payer?: string;
   error?: string;
+}
+
+// Matches the real facilitator /settle response (coinbase/x402
+// specs/x402-specification-v1.md section 7.2). This is also the exact shape
+// carried (base64-encoded) in the X-PAYMENT-RESPONSE header under wire
+// version 1, and the PAYMENT-RESPONSE header under wire version 2 — see
+// specs/transports-v1/http.md and specs/transports-v2/http.md. Servers
+// must call /settle (a separate facilitator call from /verify) to actually
+// broadcast the transaction and obtain a real transaction hash.
+export interface SettlementResponse {
+  success: boolean;
+  transaction: string;
+  network: string;
+  payer: string;
+  errorReason?: string;
 }
 
 export interface PaymentRequirements {

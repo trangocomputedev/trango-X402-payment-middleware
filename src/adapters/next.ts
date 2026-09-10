@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { verifyPayment } from "../core/verify.js";
-import { build402Body, buildPaymentRequiredHeader } from "../core/response.js";
+import { verifyPayment, settlePayment } from "../core/verify.js";
+import { build402Body, buildPaymentRequiredHeader, buildSettlementResponseHeader } from "../core/response.js";
 import { findMatchingRoute } from "../core/matcher.js";
 import { resolveAmount, getAmountParam } from "../core/resolver.js";
-import { paymentProofHeaderName } from "../core/protocol.js";
+import { paymentProofHeaderName, settlementHeaderName } from "../core/protocol.js";
 import type { X402Config, RouteMap, RouteValue } from "../core/types.js";
 
 type RouteHandler = (req: NextRequest) => Promise<NextResponse> | NextResponse;
@@ -53,7 +53,20 @@ export function withX402(config: X402Config, routes: RouteMap) {
         );
       }
 
-      return handler(req);
+      // /verify only validates the payload — the payment isn't actually
+      // executed (and no real receipt exists) until /settle broadcasts it.
+      const settlement = await settlePayment(paymentHeader, config, req.url, payment.amount, payment.description);
+      if (!settlement.success) {
+        const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
+        return NextResponse.json(
+          { ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery), error: settlement.errorReason ?? "Settlement failed" },
+          { status: 402, headers: headerValue ? { "PAYMENT-REQUIRED": headerValue } : undefined }
+        );
+      }
+
+      const response = await handler(req);
+      response.headers.set(settlementHeaderName(config), buildSettlementResponseHeader(settlement));
+      return response;
     };
   };
 }

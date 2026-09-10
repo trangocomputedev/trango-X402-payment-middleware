@@ -1,4 +1,4 @@
-import type { BazaarDiscoveryConfig, PaymentRequirements, PaymentRequirementsV2, PaymentRequiredV2, X402Config } from "./types.js";
+import type { BazaarDiscoveryConfig, PaymentRequirements, PaymentRequirementsV2, PaymentRequiredV2, SettlementResponse, X402Config } from "./types.js";
 import { declareDiscoveryExtension } from "./bazaar.js";
 import { encodeBase64 } from "./base64.js";
 import { getNetworkConfig, toAtomicUnits } from "./networks.js";
@@ -93,4 +93,12 @@ export function buildPaymentRequiredHeader(
   if (config.wireVersion !== 2) return undefined;
   const envelope = buildPaymentRequiredV2(config, resource, amount, description, discovery);
   return encodeBase64(JSON.stringify(envelope));
+}
+
+// Base64-encodes a SettlementResponse for the X-PAYMENT-RESPONSE (v1) /
+// PAYMENT-RESPONSE (v2) header — this is the client-facing receipt, the
+// same shape under both wire versions (only the header name differs, see
+// settlementHeaderName in protocol.ts).
+export function buildSettlementResponseHeader(settlement: SettlementResponse): string {
+  return encodeBase64(JSON.stringify(settlement));
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { buildPaymentRequirements, build402Body, buildPaymentRequiredV2, buildPaymentRequiredHeader } from "./response.js";
-import { encodeBase64 } from "./base64.js";
-import type { X402Config, PaymentRequirements, PaymentRequirementsV2 } from "./types.js";
+import { buildPaymentRequirements, build402Body, buildPaymentRequiredV2, buildPaymentRequiredHeader, buildSettlementResponseHeader } from "./response.js";
+import { encodeBase64, decodeBase64 } from "./base64.js";
+import type { X402Config, PaymentRequirements, PaymentRequirementsV2, SettlementResponse } from "./types.js";
 
 const config: X402Config = { payTo: "0xWallet", network: "base" };
 
@@ -111,5 +111,20 @@ describe("encodeBase64", () => {
   it("matches Buffer-based base64 encoding for ASCII and non-ASCII input", () => {
     expect(encodeBase64("hello")).toBe(Buffer.from("hello", "utf-8").toString("base64"));
     expect(encodeBase64("— em dash —")).toBe(Buffer.from("— em dash —", "utf-8").toString("base64"));
+  });
+});
+
+describe("decodeBase64", () => {
+  it("round-trips encodeBase64 output, including non-ASCII characters", () => {
+    expect(decodeBase64(encodeBase64("hello"))).toBe("hello");
+    expect(decodeBase64(encodeBase64("— em dash —"))).toBe("— em dash —");
+  });
+});
+
+describe("buildSettlementResponseHeader", () => {
+  it("base64-encodes the SettlementResponse as JSON", () => {
+    const settlement: SettlementResponse = { success: true, transaction: "0xtx", network: "base", payer: "0xPayer" };
+    const header = buildSettlementResponseHeader(settlement);
+    expect(JSON.parse(Buffer.from(header, "base64").toString("utf-8"))).toEqual(settlement);
   });
 });

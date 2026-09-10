@@ -8,3 +8,11 @@ import type { X402Config } from "./types.js";
 export function paymentProofHeaderName(config: X402Config): string {
   return config.wireVersion === 2 ? "PAYMENT-SIGNATURE" : "X-PAYMENT";
 }
+
+// Servers deliver the settlement receipt (SettlementResponse) via
+// X-PAYMENT-RESPONSE under v1 (specs/transports-v1/http.md) or
+// PAYMENT-RESPONSE under v2 (specs/transports-v2/http.md) — same
+// X-prefix split as the proof header above.
+export function settlementHeaderName(config: X402Config): string {
+  return config.wireVersion === 2 ? "PAYMENT-RESPONSE" : "X-PAYMENT-RESPONSE";
+}

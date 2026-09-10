@@ -13,3 +13,17 @@ export function encodeBase64(input: string): string {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
+
+// Reverse of encodeBase64 — needed to turn the client's X-PAYMENT /
+// PAYMENT-SIGNATURE header (base64-encoded JSON PaymentPayload, per
+// github.com/coinbase/x402/blob/main/specs/x402-specification-v1.md section 5.2
+// and transports-v1/http.md) back into the object the facilitator's /verify
+// and /settle endpoints expect under their `paymentPayload` field.
+export function decodeBase64(input: string): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(input, "base64").toString("utf-8");
+  }
+  const binary = atob(input);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}

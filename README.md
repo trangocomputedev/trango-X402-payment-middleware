@@ -13,13 +13,16 @@ Works on **Hono** (Cloudflare Workers), **Next.js** (App Router + Pages Router),
 ```
 1. Client requests /api/download/image.svg
 2. Server returns HTTP 402 + payment requirements JSON
-3. Client wallet pays the exact USDC amount on Base
-4. Client re-sends request with X-PAYMENT header (signed payment proof)
-5. Middleware verifies proof with Coinbase CDP facilitator
-6. Verified → handler runs and serves the file
+3. Client wallet signs a payment authorization for the exact USDC amount on Base
+4. Client re-sends request with X-PAYMENT header (base64-encoded signed authorization)
+5. Middleware calls the facilitator's /verify endpoint (validates the signature — nothing on-chain yet)
+6. Middleware calls the facilitator's /settle endpoint (broadcasts the transfer, returns a real transaction hash)
+7. Settled → handler runs, response carries an X-PAYMENT-RESPONSE receipt header
 ```
 
 No custodial wallets. No subscriptions. Payment goes directly to your wallet address.
+
+`/verify` and `/settle` are two separate facilitator calls (per the [official x402 spec](https://github.com/coinbase/x402/blob/main/specs/x402-specification-v1.md#7-facilitator-api)) — `/verify` only checks the payment payload is well-formed and cryptographically valid, it does not move funds or return a transaction hash. Only `/settle` actually broadcasts the transfer. Earlier versions of this package (<0.4.0) skipped the settle call entirely and incorrectly read a `txHash` field off the verify response that the real facilitator never sends — payments looked "verified" but nothing was ever settled on-chain, and no real receipt was ever produced. Fixed in 0.4.0.
 
 ---
 
@@ -259,6 +262,34 @@ const routes = {
   "/tip": { amount: "0.50", mode: "minimum", amountParam: "tip" },
 };
 ```
+
+---
+
+## Payment Receipts
+
+Once a payment settles, the handler's response carries a receipt header — `X-PAYMENT-RESPONSE` under wire version 1, `PAYMENT-RESPONSE` under wire version 2 (`settlementHeaderName(config)` returns whichever applies). The value is base64-encoded JSON matching the facilitator's `/settle` response:
+
+```json
+{
+  "success": true,
+  "transaction": "0x1234...abcd",
+  "network": "base-sepolia",
+  "payer": "0x857b...b66"
+}
+```
+
+Decode it with `decodeBase64` from this package, or your own `atob`/`Buffer.from(..., "base64")`:
+
+```ts
+import { decodeBase64 } from "@trango/x402-middleware";
+
+const receiptHeader = response.headers.get("X-PAYMENT-RESPONSE");
+const receipt = receiptHeader ? JSON.parse(decodeBase64(receiptHeader)) : undefined;
+```
+
+`transaction` is a real on-chain transaction hash — independently verifiable against the network's own RPC or block explorer, not something this package or the facilitator can fabricate after the fact. If a route's discovery config also uses `output.example`, consider including a receipt-shaped example so callers know to expect this header (this package does not do that automatically, since it can't know at declare-time whether settlement will succeed).
+
+If settlement fails (insufficient funds, expired authorization, etc.), the middleware returns 402 with `error` set to the facilitator's `errorReason` — the handler never runs, and no receipt header is set.
 
 ---
 

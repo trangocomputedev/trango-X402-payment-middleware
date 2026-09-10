@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
-import { verifyPayment } from "../core/verify.js";
-import { build402Body, buildPaymentRequiredHeader } from "../core/response.js";
+import { verifyPayment, settlePayment } from "../core/verify.js";
+import { build402Body, buildPaymentRequiredHeader, buildSettlementResponseHeader } from "../core/response.js";
 import { findMatchingRoute } from "../core/matcher.js";
 import { resolveAmount, getAmountParam } from "../core/resolver.js";
-import { paymentProofHeaderName } from "../core/protocol.js";
+import { paymentProofHeaderName, settlementHeaderName } from "../core/protocol.js";
 import type { X402Config, RouteMap, RouteValue } from "../core/types.js";
 
 // Usage — content gating:
@@ -45,6 +45,19 @@ export function x402Express(config: X402Config, routes: RouteMap) {
       });
     }
 
+    // /verify only validates the payload — the payment isn't actually
+    // executed (and no real receipt exists) until /settle broadcasts it.
+    const settlement = await settlePayment(paymentHeader, config, req.url, payment.amount, payment.description);
+    if (!settlement.success) {
+      const headerValue = buildPaymentRequiredHeader(config, req.url, payment.amount, payment.description, payment.discovery);
+      if (headerValue) res.set("PAYMENT-REQUIRED", headerValue);
+      return res.status(402).json({
+        ...build402Body(config, req.url, payment.amount, payment.description, payment.discovery),
+        error: settlement.errorReason ?? "Settlement failed",
+      });
+    }
+
+    res.set(settlementHeaderName(config), buildSettlementResponseHeader(settlement));
     return next();
   };
 }

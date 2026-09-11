@@ -52,6 +52,16 @@ describe("buildPaymentRequirements — wireVersion 2", () => {
 
   it("extra holds only name/version — not resource/description/mimeType, and never bazaar", () => {
     const req = buildPaymentRequirements(v2Config, "/r", "0.25", "desc") as PaymentRequirementsV2;
+    // "USD Coin" is Base mainnet USDC's real on-chain name() (verified via eth_call,
+    // 2026-09-11) — a client that signs against "USDC" instead produces an EIP-712
+    // signature that never matches the real contract's domain separator, and
+    // settlement silently fails. This is not a display string, it must be exact.
+    expect(req.extra).toEqual({ name: "USD Coin", version: "2" });
+  });
+
+  it("uses the correct per-network name — Base Sepolia's test token really is named USDC, unlike mainnet", () => {
+    const sepoliaConfig: X402Config = { payTo: "0xWallet", network: "base-sepolia", wireVersion: 2 };
+    const req = buildPaymentRequirements(sepoliaConfig, "/r", "0.25") as PaymentRequirementsV2;
     expect(req.extra).toEqual({ name: "USDC", version: "2" });
   });
 });
@@ -82,7 +92,7 @@ describe("build402Body — wireVersion 2", () => {
     });
     expect(body.extensions?.bazaar.info.input?.method).toBe("GET");
     expect(body.extensions?.bazaar.info.output?.example).toEqual({ ok: true });
-    expect(body.accepts[0].extra).toEqual({ name: "USDC", version: "2" });
+    expect(body.accepts[0].extra).toEqual({ name: "USD Coin", version: "2" });
   });
 });
 

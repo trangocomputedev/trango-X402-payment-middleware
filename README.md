@@ -24,6 +24,8 @@ No custodial wallets. No subscriptions. Payment goes directly to your wallet add
 
 `/verify` and `/settle` are two separate facilitator calls (per the [official x402 spec](https://github.com/coinbase/x402/blob/main/specs/x402-specification-v1.md#7-facilitator-api)) — `/verify` only checks the payment payload is well-formed and cryptographically valid, it does not move funds or return a transaction hash. Only `/settle` actually broadcasts the transfer. Earlier versions of this package (<0.4.0) skipped the settle call entirely and incorrectly read a `txHash` field off the verify response that the real facilitator never sends — payments looked "verified" but nothing was ever settled on-chain, and no real receipt was ever produced. Fixed in 0.4.0.
 
+**0.4.1 fixes a second, independent bug**: `extra.name` was hardcoded to `"USDC"` for every network. That's a display string in some contexts, but for EIP-3009's `transferWithAuthorization` it's part of the EIP-712 signing domain and must match the token contract's real on-chain `name()` exactly — a client that signs against the wrong name produces a signature that never verifies against the contract's actual domain separator, and settlement fails. Verified via direct `eth_call` against both networks' real USDC contracts (2026-09-11): Base mainnet's canonical USDC deploy is named `"USD Coin"`; the Base Sepolia test token is genuinely named `"USDC"` — they are not interchangeable, and testing only against Sepolia will never surface this bug since `"USDC"` happens to be correct there. `NetworkConfig.usdcName` now holds the verified value per network; `buildPaymentRequirements` uses it instead of a hardcoded literal.
+
 ---
 
 ## Networks

@@ -15,6 +15,11 @@ describe("getNetworkConfig", () => {
     expect(getNetworkConfig("base-sepolia").caip2).toBe("eip155:84532");
   });
 
+  it("exposes the real on-chain USDC name per network — these genuinely differ, verified via eth_call", () => {
+    expect(getNetworkConfig("base").usdcName).toBe("USD Coin");
+    expect(getNetworkConfig("base-sepolia").usdcName).toBe("USDC");
+  });
+
   it("throws for an unsupported network", () => {
     // @ts-expect-error — testing runtime guard against invalid input
     expect(() => getNetworkConfig("ethereum")).toThrow(/Unsupported network/);

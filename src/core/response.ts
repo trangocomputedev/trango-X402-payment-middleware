@@ -21,7 +21,7 @@ export function buildPaymentRequirements(
       payTo: config.payTo,
       asset: network.usdcAddress,
       maxTimeoutSeconds: 300,
-      extra: { name: "USDC", version: "2" },
+      extra: { name: network.usdcName, version: "2" },
     };
   }
 
@@ -35,7 +35,7 @@ export function buildPaymentRequirements(
     payTo: config.payTo,
     maxTimeoutSeconds: 300,
     asset: network.usdcAddress,
-    extra: { name: "USDC", version: "2" },
+    extra: { name: network.usdcName, version: "2" },
   };
 }
 

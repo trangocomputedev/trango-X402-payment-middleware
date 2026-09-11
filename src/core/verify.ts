@@ -1,19 +1,47 @@
+import { generateJwt } from "@coinbase/cdp-sdk/auth";
 import type { X402Config, VerifyResult, SettlementResponse } from "./types.js";
 import { buildPaymentRequirements } from "./response.js";
 import { decodeBase64 } from "./base64.js";
 
-const DEFAULT_FACILITATOR = "https://api.cdp.coinbase.com/platform/x402/v1/verify";
+// The real, documented CDP facilitator base (verified live 2026-09-11 — an
+// earlier version of this file guessed "platform/x402/v1/verify", which was
+// never a real endpoint shape; both the correct base path below and the CDP
+// authentication requirement itself were confirmed against a live 401
+// response and Coinbase's own published SDK source, not assumed). "v2" here
+// is CDP's own platform API versioning — unrelated to the x402 wire version
+// (1 or 2) carried inside the request body.
+const DEFAULT_FACILITATOR = "https://api.cdp.coinbase.com/platform/v2/x402/verify";
 // The real facilitator API splits verify and settle into two distinct
 // endpoints (coinbase/x402 specs/x402-specification-v1.md sections 7.1/7.2).
 // A caller who overrides facilitatorUrl for /verify is assumed to be pointed
 // at that facilitator's /verify path; /settle is derived by swapping the
 // trailing path segment rather than requiring a second config option.
-const DEFAULT_SETTLE_FACILITATOR = "https://api.cdp.coinbase.com/platform/x402/v1/settle";
+const DEFAULT_SETTLE_FACILITATOR = "https://api.cdp.coinbase.com/platform/v2/x402/settle";
 
 function settleUrlFor(facilitatorUrl: string): string {
   return facilitatorUrl.endsWith("/verify")
     ? facilitatorUrl.replace(/\/verify$/, "/settle")
     : facilitatorUrl;
+}
+
+// CDP's REST APIs require a short-lived (120s), per-request JWT bound to the
+// exact method+host+path being called — not a static header. Uses Coinbase's
+// own generateJwt (backed by `jose`, EdDSA/ES256) rather than hand-rolling
+// JWT signing. Returns {} (no auth header) when credentials aren't
+// configured, so pointing facilitatorUrl at a facilitator that doesn't need
+// CDP auth (a self-hosted one, or https://x402.org/facilitator) still works
+// with no config changes.
+async function buildCdpAuthHeaders(config: X402Config, url: string, method: string): Promise<Record<string, string>> {
+  if (!config.cdpApiKeyId || !config.cdpApiKeySecret) return {};
+  const { hostname, pathname } = new URL(url);
+  const jwt = await generateJwt({
+    apiKeyId: config.cdpApiKeyId,
+    apiKeySecret: config.cdpApiKeySecret,
+    requestMethod: method,
+    requestHost: hostname,
+    requestPath: pathname,
+  });
+  return { Authorization: `Bearer ${jwt}` };
 }
 
 /** Builds the {x402Version, paymentPayload, paymentRequirements} body both /verify and /settle expect. */
@@ -52,9 +80,10 @@ export async function verifyPayment(
 
   let res: Response;
   try {
+    const authHeaders = await buildCdpAuthHeaders(config, facilitatorUrl, "POST");
     res = await fetch(facilitatorUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(request.body),
     });
   } catch {
@@ -96,9 +125,10 @@ export async function settlePayment(
 
   let res: Response;
   try {
+    const authHeaders = await buildCdpAuthHeaders(config, settleUrl, "POST");
     res = await fetch(settleUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(request.body),
     });
   } catch {

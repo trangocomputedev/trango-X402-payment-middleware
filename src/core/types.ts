@@ -23,6 +23,15 @@ export interface X402Config {
   description?: string;
   // Defaults to 1. Existing integrations are unaffected unless this is set to 2.
   wireVersion?: X402WireVersion;
+  // Required to actually use the default facilitator (api.cdp.coinbase.com) —
+  // it's Coinbase's authenticated CDP platform API, not a public/anonymous
+  // endpoint (confirmed live: it 401s immediately on any request without a
+  // valid CDP JWT, before even looking at the payment payload). Get these
+  // from the CDP Portal's Secret API Keys page. Not needed if facilitatorUrl
+  // points at a facilitator that doesn't require CDP auth (e.g. a self-hosted
+  // one, or the community default at https://x402.org/facilitator).
+  cdpApiKeyId?: string;
+  cdpApiKeySecret?: string;
 }
 
 // Minimal JSON-Schema-shaped type — deliberately loose (not the full JSON Schema

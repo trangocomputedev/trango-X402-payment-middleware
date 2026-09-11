@@ -26,6 +26,10 @@ No custodial wallets. No subscriptions. Payment goes directly to your wallet add
 
 **0.4.1 fixes a second, independent bug**: `extra.name` was hardcoded to `"USDC"` for every network. That's a display string in some contexts, but for EIP-3009's `transferWithAuthorization` it's part of the EIP-712 signing domain and must match the token contract's real on-chain `name()` exactly — a client that signs against the wrong name produces a signature that never verifies against the contract's actual domain separator, and settlement fails. Verified via direct `eth_call` against both networks' real USDC contracts (2026-09-11): Base mainnet's canonical USDC deploy is named `"USD Coin"`; the Base Sepolia test token is genuinely named `"USDC"` — they are not interchangeable, and testing only against Sepolia will never surface this bug since `"USDC"` happens to be correct there. `NetworkConfig.usdcName` now holds the verified value per network; `buildPaymentRequirements` uses it instead of a hardcoded literal.
 
+**0.5.0 fixes a third bug and adds real facilitator authentication**: the default facilitator URL (`api.cdp.coinbase.com/platform/x402/v1/...`) was never a real endpoint — verified live, it 401s immediately on any request, before even inspecting the payment payload. The real, documented CDP facilitator lives at `api.cdp.coinbase.com/platform/v2/x402/{verify,settle}` and requires CDP authentication: it's Coinbase's authenticated platform API, not a public/anonymous facilitator. Set `cdpApiKeyId`/`cdpApiKeySecret` on your `X402Config` (get these from the [CDP Portal's Secret API Keys page](https://portal.cdp.coinbase.com/api-keys/secret)) and this package generates the required short-lived, request-bound JWT automatically via Coinbase's own `@coinbase/cdp-sdk` (`generateJwt`) — no hand-rolled signing. Both fields are optional: omit them if you point `facilitatorUrl` at a facilitator that doesn't need CDP auth, e.g. the community default at [`https://x402.org/facilitator`](https://x402.org/facilitator) (note: that facilitator supports `base-sepolia` under x402 v1, not `base` mainnet — check its `/supported` endpoint before assuming a network is covered).
+
+Note: `@coinbase/cdp-sdk` is a real npm dependency of this package now (previously zero runtime dependencies). If you vendor this package locally rather than installing it from npm, `@coinbase/cdp-sdk` needs to be resolvable from your own `node_modules` too, since it's imported, not bundled.
+
 ---
 
 ## Networks
@@ -218,6 +222,8 @@ See `examples/nextjs-support-page/` for a full working support page with tier bu
 | `facilitatorUrl` | `string` | No | Override the CDP facilitator endpoint |
 | `description` | `string` | No | Default description shown in wallet UI |
 | `wireVersion` | `1 \| 2` | No | 402 challenge wire format. Defaults to `1`. See [x402 Wire Version 2 & Bazaar Discovery](#x402-wire-version-2--bazaar-discovery) below. |
+| `cdpApiKeyId` | `string` | No* | CDP Secret API Key ID, from the [CDP Portal](https://portal.cdp.coinbase.com/api-keys/secret). *Required to use the default facilitator — it's CDP's authenticated platform API. |
+| `cdpApiKeySecret` | `string` | No* | CDP Secret API Key (base64 Ed25519 or PEM EC private key). Same requirement as above. |
 
 ### `RouteMap`
 

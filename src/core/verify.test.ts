@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { generateJwt } from "@coinbase/cdp-sdk/auth";
 import { verifyPayment, settlePayment } from "./verify.js";
 import { encodeBase64 } from "./base64.js";
 import type { X402Config } from "./types.js";
+
+vi.mock("@coinbase/cdp-sdk/auth", () => ({
+  generateJwt: vi.fn().mockResolvedValue("fake-jwt"),
+}));
 
 const config: X402Config = { payTo: "0xWallet", network: "base" };
 
@@ -155,7 +160,7 @@ describe("settlePayment", () => {
     const result = await settlePayment(validHeader, config, "/r", "0.25");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.cdp.coinbase.com/platform/x402/v1/settle",
+      "https://api.cdp.coinbase.com/platform/v2/x402/settle",
       expect.objectContaining({ method: "POST" })
     );
     expect(result).toEqual({ success: true, transaction: "0xtx", network: "base", payer: "0xPayer" });
@@ -197,5 +202,49 @@ describe("settlePayment", () => {
   it("returns a failure SettlementResponse for a malformed header", async () => {
     const result = await settlePayment("not-base64-json", config, "/r", "0.25");
     expect(result).toEqual({ success: false, transaction: "", network: "base", payer: "", errorReason: "Malformed payment header" });
+  });
+});
+
+describe("CDP authentication headers", () => {
+  const cdpConfig: X402Config = { ...config, cdpApiKeyId: "test-key-id", cdpApiKeySecret: "test-key-secret" };
+
+  it("sends no Authorization header when CDP credentials aren't configured — self-hosted/community facilitators don't need it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ isValid: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await verifyPayment(validHeader, config, "/r", "0.25");
+
+    const headers = fetchMock.mock.calls[0][1].headers;
+    expect(headers).not.toHaveProperty("Authorization");
+  });
+
+  it("attaches a CDP JWT as a Bearer token on /verify when credentials are configured", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ isValid: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await verifyPayment(validHeader, cdpConfig, "/r", "0.25");
+
+    const headers = fetchMock.mock.calls[0][1].headers;
+    expect(headers.Authorization).toBe("Bearer fake-jwt");
+    expect(generateJwt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyId: "test-key-id",
+        apiKeySecret: "test-key-secret",
+        requestMethod: "POST",
+        requestHost: "api.cdp.coinbase.com",
+        requestPath: "/platform/v2/x402/verify",
+      })
+    );
+  });
+
+  it("binds the JWT to the /settle path specifically, not /verify's path", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true, transaction: "0xtx", network: "base", payer: "0xPayer" }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await settlePayment(validHeader, cdpConfig, "/r", "0.25");
+
+    expect(generateJwt).toHaveBeenCalledWith(
+      expect.objectContaining({ requestPath: "/platform/v2/x402/settle" })
+    );
   });
 });
